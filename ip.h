@@ -11,6 +11,8 @@ int check_ipv6(char* buff);
 #define MAX_CONSECUTIVE_READ    20
 #define MAX_CONSECUTIVE_WRITE   20
 
+#define MAX_OUT_POOL_OCCUPY_CYCLES = 30
+
 /* Types of service */
 
 // Precedence 
@@ -45,22 +47,24 @@ int check_ipv6(char* buff);
 #define MF_LAST_FRAGMENT    0
 #define MF_MORE_FRAGMENTS   0b001
 
+#define SET_LAST_FRAGMENT(hdr) ((hdr)->flags &= ~MF_MORE_FRAGMENTS)
+#define SET_MORE_FRAGMENTS(hdr) ((hdr)->flags |= MF_MORE_FRAGMENTS)
 
-typedef struct //need to make this dense...
+typedef struct __attribute__((__packed__))
 {
-    uint8_t version : 4;
-    uint8_t ihl : 4;
-    uint8_t tos;
-    uint16_t len;
-    uint16_t id;
-    uint16_t flags : 3;
-    uint16_t frag_offset : 13;
-    uint8_t ttl;
-    uint8_t proto;
-    uint16_t csum;
-    uint32_t saddr;
-    uint32_t daddr;
-} iphdr __attribute__((packed));
+    uint8_t ver : 4;                // ip version
+    uint8_t ihl : 4;                // header length in 32bit words
+    uint8_t tos;                    // type of service
+    uint16_t len;                   // total length (header + data) in octets
+    uint16_t id;                    // 
+    uint16_t flags : 3;             //
+    uint16_t frag_offset : 13;      //
+    uint8_t ttl;                    //
+    uint8_t proto;                  //
+    uint16_t csum;                  //
+    uint32_t saddr;                 //
+    uint32_t daddr;                 //
+} iphdr;
 
 typedef struct {
     iphdr iphdr;
