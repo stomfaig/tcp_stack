@@ -24,7 +24,7 @@ typedef struct __attribute__((__packed__))
 } buf_id;
 
 typedef struct {
-    char *data;
+    char data[MTU];
     size_t len;
 } ip_packet;
 
@@ -78,9 +78,9 @@ int out_pool_empty() {
 int out_pool_append(iphdr *iphdr, char *data) {
     if (out_pool_full()) return -1;
     // get checksum
-    char* addr = (char *) &out_pool.pckts[out_pool.e];
-    memcpy(addr, iphdr, iphdr->ihl);
-    memcpy(addr + iphdr->ihl, data, iphdr->len - iphdr->ihl);
+    char* addr = out_pool.pckts[out_pool.e].data;
+    memcpy(addr, (void*)iphdr, iphdr->ihl * 4);
+    memcpy(addr + iphdr->ihl * 4, data, iphdr->len - iphdr->ihl * 4);
 
     out_pool.e++;  // confirm the new entry.
 }
@@ -90,7 +90,7 @@ int ip_init() {
     atomic_store(&ip.killed, 0);
     atomic_store(&ip.kill_confirmed, 0);
 
-    ip.fd = open(TUN_DEV, 0); // O_RDWR 
+    ip.fd = open(TUN_DEV, O_RDWR);
     if (ip.fd < 0) {
         perror("open");
         exit(EXIT_FAILURE);
@@ -117,13 +117,18 @@ void release() {
     atomic_store(&ip.kill_confirmed, 1);
     close(ip.fd);
 }
+
+void* traffic_manager() {
+    int r_ctr, w_ctr;
     while(!atomic_load(&ip.killed)) {
+        r_ctr = 0;
+        while(r_ctr < MAX_CONSECUTIVE_READ) {
             if (in_pool_full()) break;
             
         }
 
-        write = 0;
-        while(write < MAX_CONSECUTIVE_WRITE) {
+        w_ctr = 0;
+        while(w_ctr < MAX_CONSECUTIVE_WRITE) {
             if (out_pool_empty()) break;
 
             write(ip.fd, &out_pool.pckts[out_pool.s].data, &out_pool.pckts[out_pool.s].len);
@@ -135,8 +140,6 @@ void release() {
     release();
     return NULL;
 }
-
-
 
 int check_ipv4(char* buff) {
     if (buff[0] >> 4 == 4) return 1;
