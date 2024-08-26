@@ -2,13 +2,17 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <string.h>
+#include <fcntl.h>
+#include <stdatomic.h>
 
 #include "ip.h"
+#include "reassembly_store.h"
 
 #define FRAGMENTED(hdr) (((hdr)->flags & MF_MORE_FRAGMENTS) | (hdr)->frag_offset)
 
 struct {
-    int killed;
+    atomic_int killed;
+    atomic_int kill_confirmed;
     int fd;
 } ip;
 
@@ -83,7 +87,8 @@ int out_pool_append(iphdr *iphdr, char *data) {
 
 
 int ip_init() {
-    ip.killed = 0;
+    atomic_store(&ip.killed, 0);
+    atomic_store(&ip.kill_confirmed, 0);
 
     ip.fd = open(TUN_DEV, 0); // O_RDWR 
     if (ip.fd < 0) {
@@ -91,17 +96,28 @@ int ip_init() {
         exit(EXIT_FAILURE);
     }
 
-    // error handling, or make void
-    if( in_pool_init() < 0) { close(ip.fd); }
-    if( out_pool_init() < 0) { close(ip.fd); }
+    if(
+           in_pool_init() < 0
+        || out_pool_init() < 0
+        || ras_init() < 0
+    ) { 
+        close(ip.fd); 
+        atomic_store(&ip.killed, 1);
+    }
 }
 
+void ip_kill() {
+    atomic_store(&ip.killed, 1);
+    while(!atomic_load(&ip.kill_confirmed)) usleep(100);
+    printf("ip killed");
+}
 
-void traffic_manager() {
-    int read, write;
-    while(!ip.killed) {
-        read = 0;
-        while(read < MAX_CONSECUTIVE_READ) {
+void release() {
+    ras_kill();
+    atomic_store(&ip.kill_confirmed, 1);
+    close(ip.fd);
+}
+    while(!atomic_load(&ip.killed)) {
             if (in_pool_full()) break;
             
         }
@@ -116,7 +132,8 @@ void traffic_manager() {
         usleep(100);
     }
 
-    close(ip.fd);
+    release();
+    return NULL;
 }
 
 
