@@ -92,8 +92,8 @@ int ip_init() {
 
     ip.fd = open(TUN_DEV, O_RDWR);
     if (ip.fd < 0) {
-        perror("open");
-        exit(EXIT_FAILURE);
+        //perror("open");
+        return IP_CANT_OPEN_UTUN;
     }
 
     if(
@@ -196,7 +196,7 @@ int queue_for_sending(iphdr* hdr, char* payload_start) {
         pthread_mutex_lock(&out_pool.lck);
         out_pool_append(hdr, payload_start);
         pthread_mutex_unlock(&out_pool.lck);
-        return;
+        return IP_SEND_OK;
     }
 
     if ((hdr->flags & DF_DO_NOT_FRAGMENT) != 0) return -1; // packet too large but can't be fragmented.
@@ -220,4 +220,6 @@ int queue_for_sending(iphdr* hdr, char* payload_start) {
     SET_MORE_FRAGMENTS(hdr);
     out_pool_append(hdr, payload_start + i * nfb * 8);
     pthread_mutex_unlock(&out_pool.lck);
+
+    return IP_SEND_OK;
 }

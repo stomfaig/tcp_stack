@@ -50,6 +50,13 @@
 #define SET_LAST_FRAGMENT(hdr) ((hdr)->flags &= ~MF_MORE_FRAGMENTS)
 #define SET_MORE_FRAGMENTS(hdr) ((hdr)->flags |= MF_MORE_FRAGMENTS)
 
+// IP Error messages
+#define IP_SEND_OK          0
+#define IP_CANT_OPEN_UTUN   1
+
+int check_ipv4(char* buff);
+int check_ipv6(char* buff);
+
 typedef struct __attribute__((__packed__))
 {
     uint8_t ver : 4;                // ip version
