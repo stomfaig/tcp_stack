@@ -1,7 +1,7 @@
 #include <stdint.h>
 
-int check_ipv4(char* buff);
-int check_ipv6(char* buff);
+#ifndef IP
+#define IP
 
 #define MTU 2048
 
@@ -72,3 +72,4 @@ typedef struct {
 } ippckt;
 
 int ip_init();
+#endif
