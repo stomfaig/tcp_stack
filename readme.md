@@ -25,7 +25,7 @@ Thus, all packets awaiting further processing are first examined by the input ma
 * If **not**, they are passed on to the next step.
 * If **yes**, they are going to be moved to the *reassembly store*.
 
-## Reassembly store
+### Reassembly store
 
 The reassembly store is a linked list, with each link being a *Reassemble Entry*:
 
