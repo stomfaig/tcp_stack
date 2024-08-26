@@ -124,14 +124,16 @@ void* traffic_manager() {
         r_ctr = 0;
         while(r_ctr < MAX_CONSECUTIVE_READ) {
             if (in_pool_full()) break;
-            
+            char* dstn = in_pool.pckts[in_pool.e].data;
+            in_pool.e++;
+            read(ip.fd, dstn, MTU);
         }
 
         w_ctr = 0;
         while(w_ctr < MAX_CONSECUTIVE_WRITE) {
             if (out_pool_empty()) break;
-
-            write(ip.fd, &out_pool.pckts[out_pool.s].data, &out_pool.pckts[out_pool.s].len);
+            write(ip.fd, out_pool.pckts[out_pool.s].data, out_pool.pckts[out_pool.s].len);
+            out_pool.s++;
         }
 
         usleep(100);
@@ -167,22 +169,21 @@ void in_traffic_manager() {
         while(!in_pool_empty()) {
             char* packet;
 
-            if (!check_ipv4(packet) && !(check_ipv6(packet))) return -1;
+            if (!check_ipv4(packet) && !(check_ipv6(packet))) continue;
 
-            iphdr* bare_header = (iphdr *)packet;
-            // use header info to
-
+            iphdr* hdr = (iphdr *)packet;
             if (!FRAGMENTED(hdr)) {
                 // pass to ip packet queue
                 continue;
             }
+            ras_status s;
+            if ((s = ras_log(packet)) == SUCCESS_RE_COMPLETE) {
 
-            
-            
-
-
+            } else if (s != SUCCESS) {
+                //printf("%s", ras_error(s));
+                ;
+            }
         }
-
         usleep(100);
     }
 }
@@ -217,7 +218,7 @@ int queue_for_sending(iphdr* hdr, char* payload_start) {
     }
         
     hdr->len = (hdr->ihl * 4) + data_len % (nfb * 8);
-    SET_MORE_FRAGMENTS(hdr);
+    SET_LAST_FRAGMENT(hdr);
     out_pool_append(hdr, payload_start + i * nfb * 8);
     pthread_mutex_unlock(&out_pool.lck);
 
