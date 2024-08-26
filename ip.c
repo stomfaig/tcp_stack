@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <string.h>
@@ -223,4 +224,46 @@ int queue_for_sending(iphdr* hdr, char* payload_start) {
     pthread_mutex_unlock(&out_pool.lck);
 
     return IP_SEND_OK;
+}
+
+// Methods for testing
+
+
+/**
+ * Pops an element of the out_pool. This method should only be used for testing, as it 
+ * does not provide any error handling.
+ * 
+ */
+
+void out_pool_pop() {
+    iphdr* hdr = (iphdr *) out_pool.pckts[out_pool.s].data;
+    for (int i = 0; i < 30; i++) {
+        printf("%c", out_pool.pckts[out_pool.s].data[i]);
+    }
+    printf("\n");
+    char* data = (char *) out_pool.pckts[out_pool.s].data + hdr->ihl * 4;
+    out_pool.s++;
+
+    print_packet(hdr, data);
+}
+
+void print_packet(iphdr* hdr, char* data) {
+    printf("version             : %i\n", hdr->ver);
+    printf("inet header length  : %i\n", hdr->ihl);
+    printf("Type of service     : %i\n", hdr->tos);
+    printf("Total length        : %i\n", hdr->len);
+    printf("Identification      : %i\n", hdr->id);
+    printf("Flags               : 0%i%i\n", hdr->flags & DF_DO_NOT_FRAGMENT, hdr->flags & MF_MORE_FRAGMENTS);
+    printf("Fragment offset     : %i\n", hdr->frag_offset);
+    printf("Time to Live        : %i\n", hdr->ttl);
+    printf("Protocol            : %i\n", hdr->proto);
+    printf("Header cheksum      : %i\n", hdr->csum);
+    printf("Source addr:        : %i\n", hdr->saddr);
+    printf("Target addr:        : %i\n", hdr->daddr);
+
+    int payload_len = hdr->len - hdr->ihl * 4;
+    for (int i = 0; i < payload_len; i++) {
+        printf("%c ", data[i]);
+        if ((i+1) % 16 == 0) printf("\n");
+    }
 }

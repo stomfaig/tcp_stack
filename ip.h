@@ -3,7 +3,7 @@
 #ifndef IP
 #define IP
 
-#define MTU 2048
+#define MTU 50
 
 #define MAX_MESSAGE_POOL 100
 #define TUN_DEV "/dev/tun0"
@@ -79,4 +79,15 @@ typedef struct {
 } ippckt;
 
 int ip_init();
+void* traffic_manager();
+void ip_kill();
+int queue_for_sending(iphdr* hdr, char* payload_start);
+
+#ifdef DEBUG_INFO_ENABLED
+
+void release();
+void print_packet(iphdr* hdr, char* data);
+void out_pool_pop();
+
+#endif
 #endif
