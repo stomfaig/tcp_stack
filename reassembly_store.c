@@ -31,9 +31,28 @@ struct {
 buf_id* temp_id;
 
 
-int reassembly_store_init() {
+ras_status ras_init() {
     temp_id = (buf_id*)malloc(sizeof(buf_id));
+    if (temp_id < 0) return MEM_ERR;
     ras.entries = 0;
+
+    return SUCCESS;
+}
+
+void free_re(re* entry) {
+    free(entry->next);
+    free(entry->data);
+    free(entry->bt);
+    free(entry);
+}
+
+void ras_kill() {
+    re* current = (re *) ras.h;
+    while (current != NULL) {
+        re* next = (re *) current->next;
+        free_re(current);
+        current = next;
+    }
 }
 
 int reassembly_store_empty() {
