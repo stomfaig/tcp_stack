@@ -86,6 +86,23 @@ int out_pool_append(iphdr *iphdr, char *data) {
     out_pool.e++;  // confirm the new entry.
 }
 
+/**
+ * Pops an element of the out_pool, and prints it on std out. This method should only be used for 
+ * testing, as it does not provide any error handling.
+ * @param hdr address to which copy the iphdr data
+ * @param data address to which copy the data
+*/
+void out_pool_pop(iphdr* hdr, char* data) {
+    iphdr* pckt_hdr = (iphdr *) out_pool.pckts[out_pool.s].data;
+    char* pckt_data = ((char *) out_pool.pckts[out_pool.s].data) + (pckt_hdr->ihl * 4);
+    out_pool.s++;
+
+    u_int8_t l = pckt_hdr->len - pckt_hdr->ihl * 4;
+
+    memcpy(hdr, pckt_hdr, pckt_hdr->ihl * 4);
+    memcpy(data, pckt_data, l);
+}
+
 
 int ip_init() {
     atomic_store(&ip.killed, 0);
@@ -215,11 +232,12 @@ int queue_for_sending(iphdr* hdr, char* payload_start) {
     pthread_mutex_lock(&out_pool.lck);
     for (i = 0; i < total_fragments; i++) {
         hdr->frag_offset = i * nfb;
-        out_pool_append(hdr, payload_start + i * nfb);
+        out_pool_append(hdr, payload_start + i * nfb * 8);
     }
         
     hdr->len = (hdr->ihl * 4) + data_len % (nfb * 8);
     SET_LAST_FRAGMENT(hdr);
+    hdr->frag_offset = i * nfb;
     out_pool_append(hdr, payload_start + i * nfb * 8);
     pthread_mutex_unlock(&out_pool.lck);
 
@@ -229,25 +247,8 @@ int queue_for_sending(iphdr* hdr, char* payload_start) {
 // Methods for testing
 
 
-/**
- * Pops an element of the out_pool. This method should only be used for testing, as it 
- * does not provide any error handling.
- * 
- */
-
-void out_pool_pop() {
-    iphdr* hdr = (iphdr *) out_pool.pckts[out_pool.s].data;
-    for (int i = 0; i < 30; i++) {
-        printf("%c", out_pool.pckts[out_pool.s].data[i]);
-    }
-    printf("\n");
-    char* data = (char *) out_pool.pckts[out_pool.s].data + hdr->ihl * 4;
-    out_pool.s++;
-
-    print_packet(hdr, data);
-}
-
 void print_packet(iphdr* hdr, char* data) {
+    printf("---Packet start---\n");
     printf("version             : %i\n", hdr->ver);
     printf("inet header length  : %i\n", hdr->ihl);
     printf("Type of service     : %i\n", hdr->tos);
@@ -260,10 +261,11 @@ void print_packet(iphdr* hdr, char* data) {
     printf("Header cheksum      : %i\n", hdr->csum);
     printf("Source addr:        : %i\n", hdr->saddr);
     printf("Target addr:        : %i\n", hdr->daddr);
-
+    printf("Payload:\n");
     int payload_len = hdr->len - hdr->ihl * 4;
     for (int i = 0; i < payload_len; i++) {
-        printf("%c ", data[i]);
-        if ((i+1) % 16 == 0) printf("\n");
+        printf("%c", data[i]);
+        if ((i+1) % 8 == 0) printf("\n");
     }
+    printf("---Packet end---\n");
 }

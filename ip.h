@@ -3,7 +3,7 @@
 #ifndef IP
 #define IP
 
-#define MTU 50
+#define MTU 28
 
 #define MAX_MESSAGE_POOL 100
 #define TUN_DEV "/dev/tun0"
@@ -86,8 +86,14 @@ int queue_for_sending(iphdr* hdr, char* payload_start);
 #ifdef DEBUG_INFO_ENABLED
 
 void release();
-void print_packet(iphdr* hdr, char* data);
+
+int out_pool_empty();
+int out_pool_append(iphdr *iphdr, char *data);
 void out_pool_pop();
+
+void print_packet(iphdr* hdr, char* data);
+
+
 
 #endif
 #endif
