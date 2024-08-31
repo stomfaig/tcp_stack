@@ -1,9 +1,11 @@
-#include "ip.h"
 #include <pthread.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+
+#include "ip.h"
+#include "reassembly_store.h"
 
 typedef enum {
     PASS,
@@ -79,10 +81,34 @@ TestResult test_fragmentation() {
     return result;
 }
 
+TestResult test_ras() {
+    TestResult result = PASS;
+
+    char* packet = (char *) malloc(28 * sizeof(char));
+    iphdr* hdr = (iphdr *) packet;
+
+    hdr->ihl = 5;
+    hdr->len = 28;
+    hdr->proto = 1;
+    hdr->saddr = 2;
+    hdr->daddr = 3;
+
+    char* data = packet + hdr->ihl * 4;
+
+    for (int i = 0; i < 8; i++) data[i] = 40 + i;
+
+    ras_log(hdr);
+    hdr->frag_offset = 1;
+    ras_log(hdr);
+
+    return result;
+}
+
 int main() {
     ip_init();
-    test_out_pool();
-    test_fragmentation();
+    //test_out_pool();
+    //test_fragmentation();
+    test_ras();
     release();
 }
 

@@ -50,6 +50,8 @@
 #define SET_LAST_FRAGMENT(hdr) ((hdr)->flags &= ~MF_MORE_FRAGMENTS)
 #define SET_MORE_FRAGMENTS(hdr) ((hdr)->flags |= MF_MORE_FRAGMENTS)
 
+#define GET_MORE_FRAGMENTS(hdr) ((((hdr)->flags & 0b001) != 0))
+
 // IP Error messages
 #define IP_SEND_OK          0
 #define IP_CANT_OPEN_UTUN   1
@@ -93,7 +95,6 @@ void out_pool_pop();
 
 void print_packet(iphdr* hdr, char* data);
 
-
-
 #endif
+
 #endif

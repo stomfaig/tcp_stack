@@ -21,6 +21,7 @@ typedef struct {
     uint16_t tdl;                   // total data length in 1 byte blocks
     uint8_t ttl;                    // time to live
     uint16_t tam;                   // total available memory in 1 byte blocks
+    uint8_t got_last : 1;           // 1 if got a package with more packets flag not set.
 } re;
 
 struct {
@@ -58,6 +59,14 @@ void ras_kill() {
 
 int reassembly_store_empty() {
     return ras.entries == 0;
+}
+
+void print_ras_entires() {
+    re* current = (re *) ras.h;
+    while (current != NULL) {
+        re* next = (re *) current->next;
+        
+    }
 }
 
 /**
@@ -126,6 +135,29 @@ ras_status ras_extend_re(re* entry) {
 }
 
 /**
+ * Log the received octets in the bit table
+ * @param entry entry to set the bit table of
+ * @param start id of starting octet
+ * @param len number of octets to register as received
+ */
+void log_bit_table(re* entry, int start, int len) {
+    for (int i = 0; i < len; i++) {
+        *(entry->bt + (start + i) / 8) |= 1 << (7 - (start + i) % 8);
+    }
+}
+
+/**
+ * Checks whether the bit table of a re entry is complete.
+ * @param entry entry to check the bit table of
+ */
+int re_complete(re* entry) {
+    for (int i = 0; i < entry->tdl; i++) {
+        if ((*(entry->bt + i / 8) & (1 << (7- i % 8))) == 0) return 0;
+    }
+    return 1;
+}
+
+/**
  * Stores the given packet in the given entry. Copies the contents of
  * packet into the memory allocated for the reassembly of a packet.
  * @param entry Reassembly entry to store the packet in
@@ -144,7 +176,7 @@ ras_status ras_store_packet(re* entry, char* packet) { // double check the units
     }
 
     char* data_start = packet + hdr->ihl * 4;                           // Both of these are in octets 
-    size_t dl8 = hdr->ttl - hdr->ihl * 4;                               // data length in 1 byte block
+    size_t dl8 = hdr->len - hdr->ihl * 4;                               // data length in 1 byte block
 
     if (frag_offset * 8 + dl8 > entry->tdl)                             // 
         entry->tdl = frag_offset * 8 + dl8;
@@ -154,28 +186,34 @@ ras_status ras_store_packet(re* entry, char* packet) { // double check the units
 
     memcpy(entry->data + frag_offset * 8, data_start, dl8);             // Copy data into re
 
-    size_t dl64 = dl8 / 8 + ( dl8 % 8 != 0);                            // data length in 8 byte blocks
+    uint8_t dl64 = dl8 / 8 + ( dl8 % 8 != 0);                            // data length in 8 byte blocks
     memset(entry->bt + frag_offset, 1, dl64);                           // log octets received
 
-    // check if the bit table is completely filled in. If it is, 
-    if (0) return SUCCESS_RE_COMPLETE;
+    if (!GET_MORE_FRAGMENTS(hdr)) entry->got_last = 1;
+    
+    if (entry->got_last && re_complete(entry)) return SUCCESS_RE_COMPLETE;
     return SUCCESS;
 }
 
 
 /**
  * Organize a received packet in the Reassembly Store.
- * @param packet: packet to be stored
+ * @param packet: raw packet to be stored
  */
 ras_status ras_log(char* packet) {
     iphdr* hdr = (iphdr *) packet;
     get_buf_id(hdr, temp_id);
 
     re* current = ras.h;
-    while (!strncmp((char *)temp_id, (char *)current->id, 72)) 
+    while (current != NULL && !memcmp(temp_id, current->id, sizeof(buf_id))) 
         current = current->next;
 
-    if (current == NULL) return ras_new_datagram(temp_id);
+    ras_status result;
+    if (current == NULL) {
+        result = ras_new_datagram(temp_id);
+        current = ras.h;
+    }
+    if (result == ERROR) return result;
 
     return ras_store_packet(current, packet);
 }

@@ -108,11 +108,11 @@ int ip_init() {
     atomic_store(&ip.killed, 0);
     atomic_store(&ip.kill_confirmed, 0);
 
-    ip.fd = open(TUN_DEV, O_RDWR);
+    /*ip.fd = open(TUN_DEV, O_RDWR);
     if (ip.fd < 0) {
-        //perror("open");
+        perror("open");
         return IP_CANT_OPEN_UTUN;
-    }
+    }*/
 
     if(
            in_pool_init() < 0
@@ -179,8 +179,8 @@ int get_buff_id(iphdr* hdr, buf_id* id) {
 
 
 /** 
- * This method takes incoming packets form in_pool, and reassables them 
- * 
+ * This method takes incoming packets form in_pool, logs them in the reassembly store,
+ * and if a packet is complete, passes it to the next level. 
  */
 void in_traffic_manager() {
     while(!ip.killed) {
@@ -196,10 +196,9 @@ void in_traffic_manager() {
             }
             ras_status s;
             if ((s = ras_log(packet)) == SUCCESS_RE_COMPLETE) {
-
+                // pass to ip packet queue
             } else if (s != SUCCESS) {
-                //printf("%s", ras_error(s));
-                ;
+                // report error 
             }
         }
         usleep(100);
