@@ -6,23 +6,23 @@
 #define MIN_PACKET_SIZE 100 // Allows storing 100 octets of data.
 
 typedef enum {
-    ERROR,
-    MEM_ERR,
-    SUCCESS,
-    SUCCESS_RE_COMPLETE,
-} ras_status;
+    RAS_ERROR,                      // Generic error value
+    RAS_MEM_ERR,                    // Error related to allocating memory
+    RAS_ERR_PACKET_NOT_COMPLETE,    // Error reported when ras_get_packet called on a not complete packet
+    RAS_ERR_PACKET_NOT_FOUND,       // Error reported when ras_get_packet is called with a header that doesn't match any streams
+    RAS_SUCCESS,                    // Returned if the operation was successful
+    RAS_SUCCESS_RE_COMPLETE,        // Returned when the packet with which ras_log was called completed the packet
+    
+} RasStatus;
 
-char* ras_error(ras_status s);
+void ras_error_message(RasStatus s);
 
-ras_status ras_init();
+RasStatus ras_init();
 void ras_kill();
-ras_status ras_log(char* packet);
-ras_status ras_get_packet(iphdr* hdr);
+RasStatus ras_log(char* packet);
+RasStatus ras_get_packet(iphdr* hdr, char* data);
 
 #ifdef DEBUG_INFO_ENABLED
-
-ras_status ras_log(char* packet);
-
 
 #endif
 

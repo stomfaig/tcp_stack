@@ -1,22 +1,38 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "reassembly_store.h"
+
+/**
+ * Prints the error message associated with a RasStatus code
+ * @param s: RasStatus to be decoded.
+ */
+void ras_error_message(RasStatus s) {
+    switch (s) {
+        case RAS_ERROR: printf("RAS: Unspecified error."); break;
+        case RAS_MEM_ERR: printf("RAS: Memory error."); break;
+        case RAS_ERR_PACKET_NOT_COMPLETE: printf("RAS: Stream exists but not complete."); break;
+        case RAS_ERR_PACKET_NOT_FOUND: printf("RAS: Stream not found."); break;
+        case RAS_SUCCESS: break;
+        case RAS_SUCCESS_RE_COMPLETE: break;
+    }
+}
 
 typedef struct __attribute__((__packed__))
 {
     uint32_t saddr;                 // source address
     uint32_t daddr;                 // target address
     uint8_t proto;                  // protocol
-} buf_id;
-
+} BufId;
 
 typedef struct {
     void* next;           
     iphdr* hdr;                     // original packet header
-    buf_id* id;                     // buffer id:
+    BufId* id;                     // buffer id:
     char* data;                     // data
+    uint8_t bt_len;                 // length of the bit table
     char* bt;                       // bit table
     uint16_t tdl;                   // total data length in 1 byte blocks
     uint8_t ttl;                    // time to live
@@ -25,20 +41,20 @@ typedef struct {
 } re;
 
 struct {
-    buf_id temp;                    // used to store buf_id's temporarily
+    BufId temp;                    // used to store BufId's temporarily
     uint8_t entries;                // number of entries in reassembly store
     re* h;                          // head of the linked list
 } ras;
 
-buf_id* temp_id;
+BufId* temp_id;
 
 
-ras_status ras_init() {
-    temp_id = (buf_id*)malloc(sizeof(buf_id));
-    if (temp_id < 0) return MEM_ERR;
+RasStatus ras_init() {
+    temp_id = (BufId*)malloc(sizeof(BufId));
+    if (temp_id < 0) return RAS_MEM_ERR;
     ras.entries = 0;
 
-    return SUCCESS;
+    return RAS_SUCCESS;
 }
 
 void free_re(re* entry) {
@@ -70,12 +86,12 @@ void print_ras_entires() {
 }
 
 /**
- * Given an iphdr constructs a buf_id.
+ * Given an iphdr constructs a BufId.
  * @param hdr: ip header to be summarized
  * @param id: buffer id to be written the result into
  */
 
-void get_buf_id(iphdr* hdr, buf_id* id) {
+void get_BufId(iphdr* hdr, BufId* id) {
     id->saddr = hdr->saddr;
     id->daddr = hdr->daddr;
     id->proto = hdr->proto;
@@ -87,25 +103,26 @@ void get_buf_id(iphdr* hdr, buf_id* id) {
  * packet of pre-defined size; with provided buffer id.
  * @param id: buffer id of the datagram to be reassembled.
  */
-ras_status ras_new_datagram(buf_id* id) {
-    buf_id *local_id = (buf_id*) malloc(sizeof(buf_id));                // Make a local copy of the buffer id.
+RasStatus ras_new_datagram(BufId* id) {
+    BufId *local_id = (BufId*) malloc(sizeof(BufId));                // Make a local copy of the buffer id.
     memcpy(local_id, id, 72);
     
     re* new_re = (re *) malloc(sizeof(re));                             // Allocate a new reassembly entry.
-    if (new_re == NULL) return MEM_ERR;
+    if (new_re == NULL) return RAS_MEM_ERR;
 
     new_re->next = ras.h;
 
     new_re->hdr = (iphdr *) malloc(sizeof(iphdr));                      // Allocate header
-    if (new_re->hdr == NULL) return MEM_ERR;
+    if (new_re->hdr == NULL) return RAS_MEM_ERR;
 
     new_re->id = local_id;
 
     new_re->data = (char *) malloc(sizeof(char) * 8 * MIN_PACKET_SIZE); // Allocate minimum requirement
-    if (new_re->data == NULL) return MEM_ERR;
+    if (new_re->data == NULL) return RAS_MEM_ERR;
 
-    new_re->bt = (char *) malloc(sizeof(char) * MIN_PACKET_SIZE);       // Allocate bit table
-    if (new_re->bt == NULL) return MEM_ERR;
+    new_re->bt_len = (MIN_PACKET_SIZE / 8 + (MIN_PACKET_SIZE % 8) != 0);
+    new_re->bt = (char *) malloc(sizeof(char) * new_re->bt_len);       // Allocate bit table
+    if (new_re->bt == NULL) return RAS_MEM_ERR;
 
     new_re->tdl = 0;
     // todo: time to live
@@ -113,16 +130,16 @@ ras_status ras_new_datagram(buf_id* id) {
     
     ras.h = new_re;
 
-    return SUCCESS;
+    return RAS_SUCCESS;
 }
 
 /**
  * Extend the data memory of a given reassembly entry, to size total_data_length.
  * @param entry: Entry to be extended
  */
-ras_status ras_extend_re(re* entry) {
+RasStatus ras_extend_re(re* entry) {
     char* new_data_store = malloc(entry->tdl * sizeof(char));
-    if (new_data_store == NULL) return MEM_ERR;
+    if (new_data_store == NULL) return RAS_MEM_ERR;
 
     memcpy(new_data_store, entry->data, entry->tam);
     free(entry->data);
@@ -138,7 +155,7 @@ ras_status ras_extend_re(re* entry) {
     entry->bt = new_bt;
     free(old_bt);
 
-    return SUCCESS;
+    return RAS_SUCCESS;
 }
 
 /**
@@ -202,7 +219,7 @@ RasStatus ras_get_packet(iphdr* hdr, char* data) {
  * eration was successful, but the package is not yet complete. If an error occured, then the
  * appropriate error code is returned.
  */
-ras_status ras_store_packet(re* entry, char* packet) { // double check the units here
+RasStatus ras_store_packet(re* entry, char* packet) { // double check the units here
     iphdr* hdr = (iphdr *) packet;
     
     size_t frag_offset = hdr->frag_offset;
@@ -226,8 +243,8 @@ ras_status ras_store_packet(re* entry, char* packet) { // double check the units
 
     if (!GET_MORE_FRAGMENTS(hdr)) entry->got_last = 1;
     
-    if (entry->got_last && re_complete(entry)) return SUCCESS_RE_COMPLETE;
-    return SUCCESS;
+    if (entry->got_last && re_complete(entry)) return RAS_SUCCESS_RE_COMPLETE;
+    return RAS_SUCCESS;
 }
 
 
@@ -235,21 +252,21 @@ ras_status ras_store_packet(re* entry, char* packet) { // double check the units
  * Organize a received packet in the Reassembly Store.
  * @param packet: raw packet to be stored
  */
-ras_status ras_log(char* packet) {
+RasStatus ras_log(char* packet) {
     iphdr* hdr = (iphdr *) packet;
     get_BufId(hdr, temp_id);
 
     re* current = ras.h;
-    while (current != NULL && memcmp(temp_id, current->id, sizeof(BufId)))
+    while (current != NULL && memcmp(temp_id, current->id, sizeof(BufId))) {
         current = current->next;
+    }
 
-    ras_status result;
+    RasStatus result;
     if (current == NULL) {
-        result = ras_new_datagram(temp_id);
+        if ((result = ras_new_datagram(temp_id)) != RAS_SUCCESS) return result;
         current = ras.h;
     }
-    if (result == ERROR) return result;
-
+    
     return ras_store_packet(current, packet);
 }
 
