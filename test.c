@@ -83,8 +83,9 @@ TestResult test_fragmentation() {
 
 TestResult test_ras() {
     TestResult result = PASS;
+    printf("Testing reassembly store...\t");
 
-    char* packet = (char *) malloc(28 * sizeof(char));
+    char* packet = (char *) malloc(36 * sizeof(char));
     iphdr* hdr = (iphdr *) packet;
 
     hdr->ihl = 5;
@@ -95,19 +96,30 @@ TestResult test_ras() {
 
     char* data = packet + hdr->ihl * 4;
 
-    for (int i = 0; i < 8; i++) data[i] = 40 + i;
-
-    ras_log(hdr);
+    
+    for (int i = 0; i < 8; i++) data[i] = 65 + i;
+    SET_MORE_FRAGMENTS(hdr);
+    if (ras_log(packet) != RAS_SUCCESS) result = FAIL;
     hdr->frag_offset = 1;
-    ras_log(hdr);
+    for (int i = 0; i < 8; i++) data[i] = 73 + i;
+    SET_LAST_FRAGMENT(hdr);
+    if (ras_log(packet) != RAS_SUCCESS_RE_COMPLETE) result = FAIL;
+    
+    ras_get_packet(hdr, data);
 
+    for (int i = 0; i < 16; i++) {
+        if (data[i] != 65 + i) result = FAIL;
+    }
+    
+    free(packet);
+    printf(result == PASS ? "PASS\n" : "FAIL\n");
     return result;
 }
 
 int main() {
     ip_init();
-    //test_out_pool();
-    //test_fragmentation();
+    test_out_pool();
+    test_fragmentation();
     test_ras();
     release();
 }
