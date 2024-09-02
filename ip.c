@@ -205,7 +205,13 @@ void in_traffic_manager() {
     }
 }
 
-
+/**
+ * Given a header and data pointer, fragments the packet into smaller packets that have smaller size then
+ * the MTU.
+ * @param hdr header containing all 'routing information'.
+ * @param payload_start pointer to the data chunk associated with the header.
+ */
+IpStatus queue_for_sending(iphdr* hdr, char* payload_start) {
 
 // Fragments are counted in units of 8 octets.
 int queue_for_sending(iphdr* hdr, char* payload_start) {
@@ -243,9 +249,11 @@ int queue_for_sending(iphdr* hdr, char* payload_start) {
     return IP_SEND_OK;
 }
 
-// Methods for testing
-
-
+/**
+ * Given a header and data block, prints the content of the packet in human readable form.
+ * @param hdr header of the packet
+ * @param data pointer to the data associated to the header.
+ */
 void print_packet(iphdr* hdr, char* data) {
     printf("---Packet start---\n");
     printf("version             : %i\n", hdr->ver);
