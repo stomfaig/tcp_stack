@@ -32,7 +32,7 @@ The reassembly store is a linked list, with each link being a *Reassemble Entry*
     typedef struct {
         re* next;           
         iphdr* hdr;                     // original packet header
-        buf_id* id;                     // buffer id:
+        BufId* id;                     // buffer id:
         char* data;                     // data
         char* bt;                       // bit table
         uint16_t tdl;                   // total data length
