@@ -130,6 +130,13 @@ ras_status ras_extend_re(re* entry) {
     entry->tam = entry->tdl;
 
     // extend bit table
+    uint8_t new_bt_len = entry->tdl / 8 + (entry->tdl % 8 != 0);
+    char* new_bt = malloc(new_bt_len * sizeof(char));
+    if (new_bt == NULL) return RAS_MEM_ERR;
+    memcpy(new_bt, entry->bt, entry->bt_len);
+    char* old_bt = entry->bt;
+    entry->bt = new_bt;
+    free(old_bt);
 
     return SUCCESS;
 }
@@ -151,10 +158,39 @@ void log_bit_table(re* entry, int start, int len) {
  * @param entry entry to check the bit table of
  */
 int re_complete(re* entry) {
-    for (int i = 0; i < entry->tdl; i++) {
+    uint8_t chunks = entry->tdl / 8 + (entry->tdl % 8 != 0);
+    for (int i = 0; i < chunks; i++) {
         if ((*(entry->bt + i / 8) & (1 << (7- i % 8))) == 0) return 0;
     }
     return 1;
+}
+
+/**
+ * Upon a provided hdr, the function *completes the header from the fully re-
+ * covered header that is stored, and load the associated data into data.
+ * @param hdr iphdr specifying which message stream the caller is asking for
+ * @param data location where the stored data is going to be copied.
+ */
+RasStatus ras_get_packet(iphdr* hdr, char* data) {
+    BufId* id  = malloc(sizeof(BufId));
+    if (id == NULL) return RAS_MEM_ERR;
+    get_BufId(hdr, id);
+
+    re* current = ras.h;
+    while (current != NULL && memcmp(id, current->id, sizeof(BufId)))
+        current = current->next;
+
+    if (current == NULL) return RAS_ERR_PACKET_NOT_FOUND;
+    if (!re_complete(current)) return RAS_ERR_PACKET_NOT_COMPLETE;
+
+    current->hdr->len = current->hdr->ihl * 4 +current->tdl;                     // Fix flags that could have changed.
+    current->hdr->frag_offset = 0;
+    current->hdr->flags = 0b000;
+
+    memcpy(hdr, current->hdr, sizeof(iphdr));                               // copy header
+    memcpy(data, current->data, current->tdl);
+
+    return RAS_SUCCESS;
 }
 
 /**
@@ -182,12 +218,11 @@ ras_status ras_store_packet(re* entry, char* packet) { // double check the units
         entry->tdl = frag_offset * 8 + dl8;
 
     if (entry->tdl > entry->tam)                                        // Check if there is enough memory in re
-        ras_extend_re(entry);
+        ras_extend_re(entry);                                           // TODO error handling
 
     memcpy(entry->data + frag_offset * 8, data_start, dl8);             // Copy data into re
 
-    uint8_t dl64 = dl8 / 8 + ( dl8 % 8 != 0);                            // data length in 8 byte blocks
-    memset(entry->bt + frag_offset, 1, dl64);                           // log octets received
+    log_bit_table(entry, frag_offset, dl8/8 + (entry->tdl % 8 != 0));
 
     if (!GET_MORE_FRAGMENTS(hdr)) entry->got_last = 1;
     
@@ -202,10 +237,10 @@ ras_status ras_store_packet(re* entry, char* packet) { // double check the units
  */
 ras_status ras_log(char* packet) {
     iphdr* hdr = (iphdr *) packet;
-    get_buf_id(hdr, temp_id);
+    get_BufId(hdr, temp_id);
 
     re* current = ras.h;
-    while (current != NULL && !memcmp(temp_id, current->id, sizeof(buf_id))) 
+    while (current != NULL && memcmp(temp_id, current->id, sizeof(BufId)))
         current = current->next;
 
     ras_status result;
