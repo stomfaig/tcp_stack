@@ -3,6 +3,17 @@
 #ifndef IP
 #define IP
 
+typedef enum {
+    IP_ERROR,                      // Generic error value
+    IP_ERR_INIT,                   // Initialization failed
+    IP_ERR_TOO_LARGE,              // Returned by queue_for_sending if the packet submitted is too large
+    IP_ERR_OUT_POOL_FULL,          // Out buffer is full
+    IP_MEM_ERR,                    // Error related to allocating memory
+    IP_SUCCESS,                    //
+} IpStatus;
+
+void ip_error_message(IpStatus s);
+
 #define MTU 28
 
 #define MAX_MESSAGE_POOL 100
@@ -80,18 +91,18 @@ typedef struct {
     char payload[MTU-sizeof(iphdr)];
 } ippckt;
 
-int ip_init();
+IpStatus ip_init();
 void* traffic_manager();
 void ip_kill();
-int queue_for_sending(iphdr* hdr, char* payload_start);
+IpStatus queue_for_sending(iphdr* hdr, char* payload_start);
 
 #ifdef DEBUG_INFO_ENABLED
 
 void release();
 
 int out_pool_empty();
-int out_pool_append(iphdr *iphdr, char *data);
-void out_pool_pop();
+IpStatus out_pool_append(iphdr *iphdr, char *data);
+void out_pool_pop(iphdr* hdr, char* data);
 
 void print_packet(iphdr* hdr, char* data);
 

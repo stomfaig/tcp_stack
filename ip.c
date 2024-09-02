@@ -11,6 +11,22 @@
 
 #define FRAGMENTED(hdr) (((hdr)->flags & MF_MORE_FRAGMENTS) | (hdr)->frag_offset)
 
+
+/**
+ * Given an IpStatus, prints the associated error message.
+ * @param s: IpStatus to be decoded.
+ */
+void ip_error_message(IpStatus s) {
+    switch (s) {
+        case IP_ERROR: printf("IP: Unspecified error."); break;
+        case IP_ERR_INIT: printf("IP: Initialization failed"); break;
+        case IP_ERR_TOO_LARGE: printf("IP: Message too large for sending"); break;
+        case IP_ERR_OUT_POOL_FULL: printf("IP: Out pool is full - message discarded."); break;
+        case IP_MEM_ERR: printf("IP: Memory error"); break;
+        case IP_SUCCESS: break;
+    }
+}
+
 struct {
     atomic_int killed;
     atomic_int kill_confirmed;
@@ -22,7 +38,7 @@ typedef struct __attribute__((__packed__))
     uint32_t saddr;                 // source address
     uint32_t daddr;                 // target address
     uint8_t proto;                  // protocol
-} buf_id;
+} BufId;
 
 typedef struct {
     char data[MTU];
@@ -44,15 +60,19 @@ struct {
 } out_pool;
 
 int in_pool_init() {
-    pthread_mutex_init(&in_pool.lck, NULL);
+    int s = 0;
+    if ((s = pthread_mutex_init(&in_pool.lck, NULL)) != 0) return s;
     in_pool.s = 0;
     in_pool.e = 0;
+    return 0;
 }
 
 int out_pool_init() { 
-    pthread_mutex_init(&out_pool.lck, NULL);
+    int s = 0;
+    if ((s = pthread_mutex_init(&out_pool.lck, NULL)) != 0) return s;
     out_pool.s = 0;
     out_pool.e = 0;
+    return 0;
 }
 
 int in_pool_full() {
@@ -76,14 +96,15 @@ int out_pool_empty() {
  * @param iphdr reference to header of package to be sent
  * @param data reference to the data to be attached to the message.
 */
-int out_pool_append(iphdr *iphdr, char *data) {
-    if (out_pool_full()) return -1;
+IpStatus out_pool_append(iphdr *iphdr, char *data) {
+    if (out_pool_full()) return IP_ERR_OUT_POOL_FULL;
     // get checksum
     char* addr = out_pool.pckts[out_pool.e].data;
     memcpy(addr, (void*)iphdr, iphdr->ihl * 4);
     memcpy(addr + iphdr->ihl * 4, data, iphdr->len - iphdr->ihl * 4);
 
     out_pool.e++;  // confirm the new entry.
+    return IP_SUCCESS;
 }
 
 /**
@@ -104,7 +125,7 @@ void out_pool_pop(iphdr* hdr, char* data) {
 }
 
 
-int ip_init() {
+IpStatus ip_init() {
     atomic_store(&ip.killed, 0);
     atomic_store(&ip.kill_confirmed, 0);
 
@@ -121,7 +142,9 @@ int ip_init() {
     ) { 
         close(ip.fd); 
         atomic_store(&ip.killed, 1);
+        return IP_ERR_INIT;
     }
+    return IP_SUCCESS;
 }
 
 void ip_kill() {
@@ -171,7 +194,7 @@ int check_ipv6(char* buff) {
     else return 0;
 }
 
-int get_buff_id(iphdr* hdr, buf_id* id) {
+void get_buff_id(iphdr* hdr, BufId* id) {
     id->saddr = hdr->saddr;
     id->daddr = hdr->daddr;
     id->proto = hdr->proto;
@@ -190,14 +213,20 @@ void in_traffic_manager() {
             if (!check_ipv4(packet) && !(check_ipv6(packet))) continue;
 
             iphdr* hdr = (iphdr *)packet;
+
+            // check checksum.
+
             if (!FRAGMENTED(hdr)) {
                 // pass to ip packet queue
                 continue;
             }
-            ras_status s;
-            if ((s = ras_log(packet)) == SUCCESS_RE_COMPLETE) {
+            RasStatus s;
+            if ((s = ras_log(packet)) == RAS_SUCCESS_RE_COMPLETE) {
+                iphdr* cmplt_hdr;
+                char* data;
+                ras_get_packet(cmplt_hdr, data);
                 // pass to ip packet queue
-            } else if (s != SUCCESS) {
+            } else if (s != RAS_SUCCESS) {
                 // report error 
             }
         }
@@ -213,17 +242,17 @@ void in_traffic_manager() {
  */
 IpStatus queue_for_sending(iphdr* hdr, char* payload_start) {
 
-// Fragments are counted in units of 8 octets.
-int queue_for_sending(iphdr* hdr, char* payload_start) {
+    IpStatus s;
 
     if (hdr->len < MTU) {
         pthread_mutex_lock(&out_pool.lck);
-        out_pool_append(hdr, payload_start);
+        if ((s = out_pool_append(hdr, payload_start)) != IP_SUCCESS)
+            return s;
         pthread_mutex_unlock(&out_pool.lck);
-        return IP_SEND_OK;
+        return IP_SUCCESS;
     }
 
-    if ((hdr->flags & DF_DO_NOT_FRAGMENT) != 0) return -1; // packet too large but can't be fragmented.
+    if ((hdr->flags & DF_DO_NOT_FRAGMENT) != 0) return IP_ERR_TOO_LARGE; // packet too large but can't be fragmented.
 
     int data_len = hdr->len - hdr->ihl * 4;     // total number of octets of data
     int nfb = (MTU - hdr->ihl * 4) / 8;         // number of 8 octet blocks per fragment
@@ -237,16 +266,18 @@ int queue_for_sending(iphdr* hdr, char* payload_start) {
     pthread_mutex_lock(&out_pool.lck);
     for (i = 0; i < total_fragments; i++) {
         hdr->frag_offset = i * nfb;
-        out_pool_append(hdr, payload_start + i * nfb * 8);
+        if ((s = out_pool_append(hdr, payload_start + i * nfb * 8)) != IP_SUCCESS)
+            return s;
     }
         
     hdr->len = (hdr->ihl * 4) + data_len % (nfb * 8);
     SET_LAST_FRAGMENT(hdr);
     hdr->frag_offset = i * nfb;
-    out_pool_append(hdr, payload_start + i * nfb * 8);
+    if ((s = out_pool_append(hdr, payload_start + i * nfb * 8)) != IP_SUCCESS)
+        return s;
     pthread_mutex_unlock(&out_pool.lck);
 
-    return IP_SEND_OK;
+    return IP_SUCCESS;
 }
 
 /**
