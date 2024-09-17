@@ -95,6 +95,11 @@ IpStatus ip_init();
 void* traffic_manager();
 void ip_kill();
 IpStatus queue_for_sending(iphdr* hdr, char* payload_start);
+IpStatus set_packet_target()
+
+int ip_empty();
+char* ip_get_packet();
+IpStatus ip_send_packet();
 
 #ifdef DEBUG_INFO_ENABLED
 

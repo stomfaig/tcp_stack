@@ -103,7 +103,7 @@ IpStatus out_pool_append(iphdr *iphdr, char *data) {
     memcpy(addr, (void*)iphdr, iphdr->ihl * 4);
     memcpy(addr + iphdr->ihl * 4, data, iphdr->len - iphdr->ihl * 4);
 
-    out_pool.e++;  // confirm the new entry.
+    out_pool.e++; 
     return IP_SUCCESS;
 }
 
@@ -222,7 +222,7 @@ void in_traffic_manager() {
             }
             RasStatus s;
             if ((s = ras_log(packet)) == RAS_SUCCESS_RE_COMPLETE) {
-                iphdr* cmplt_hdr;
+                iphdr* cmplt_hdr;                   // These need allocated space...
                 char* data;
                 ras_get_packet(cmplt_hdr, data);
                 // pass to ip packet queue

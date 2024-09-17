@@ -200,11 +200,11 @@ RasStatus ras_get_packet(iphdr* hdr, char* data) {
     if (current == NULL) return RAS_ERR_PACKET_NOT_FOUND;
     if (!re_complete(current)) return RAS_ERR_PACKET_NOT_COMPLETE;
 
-    current->hdr->len = current->hdr->ihl * 4 +current->tdl;                     // Fix flags that could have changed.
+    current->hdr->len = current->hdr->ihl * 4 +current->tdl;                // Fix flags that could have changed.
     current->hdr->frag_offset = 0;
     current->hdr->flags = 0b000;
 
-    memcpy(hdr, current->hdr, sizeof(iphdr));                               // copy header
+    memcpy(hdr, current->hdr, sizeof(iphdr));                               // Here we rather need to pass the ownership of these on...                         
     memcpy(data, current->data, current->tdl);
 
     return RAS_SUCCESS;
