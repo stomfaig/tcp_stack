@@ -29,7 +29,7 @@ typedef struct __attribute__((__packed__))
 
 typedef struct {
     void* next;           
-    iphdr* hdr;                     // original packet header
+    IpHeader* hdr;                     // original packet header
     BufId* id;                     // buffer id:
     char* data;                     // data
     uint8_t bt_len;                 // length of the bit table
@@ -86,12 +86,12 @@ void print_ras_entires() {
 }
 
 /**
- * Given an iphdr constructs a BufId.
+ * Given an IpHeader constructs a BufId.
  * @param hdr: ip header to be summarized
  * @param id: buffer id to be written the result into
  */
 
-void get_BufId(iphdr* hdr, BufId* id) {
+void get_BufId(IpHeader* hdr, BufId* id) {
     id->saddr = hdr->saddr;
     id->daddr = hdr->daddr;
     id->proto = hdr->proto;
@@ -112,7 +112,7 @@ RasStatus ras_new_datagram(BufId* id) {
 
     new_re->next = ras.h;
 
-    new_re->hdr = (iphdr *) malloc(sizeof(iphdr));                      // Allocate header
+    new_re->hdr = (IpHeader *) malloc(sizeof(IpHeader));                      // Allocate header
     if (new_re->hdr == NULL) return RAS_MEM_ERR;
 
     new_re->id = local_id;
@@ -185,10 +185,10 @@ int re_complete(re* entry) {
 /**
  * Upon a provided hdr, the function *completes the header from the fully re-
  * covered header that is stored, and load the associated data into data.
- * @param hdr iphdr specifying which message stream the caller is asking for
+ * @param hdr IpHeader specifying which message stream the caller is asking for
  * @param data location where the stored data is going to be copied.
  */
-RasStatus ras_get_packet(iphdr* hdr, char* data) {
+RasStatus ras_get_packet(IpHeader* hdr, char* data) {
     BufId* id  = malloc(sizeof(BufId));
     if (id == NULL) return RAS_MEM_ERR;
     get_BufId(hdr, id);
@@ -204,7 +204,7 @@ RasStatus ras_get_packet(iphdr* hdr, char* data) {
     current->hdr->frag_offset = 0;
     current->hdr->flags = 0b000;
 
-    memcpy(hdr, current->hdr, sizeof(iphdr));                               // Here we rather need to pass the ownership of these on...                         
+    memcpy(hdr, current->hdr, sizeof(IpHeader));                               // Here we rather need to pass the ownership of these on...                         
     memcpy(data, current->data, current->tdl);
 
     return RAS_SUCCESS;
@@ -220,12 +220,12 @@ RasStatus ras_get_packet(iphdr* hdr, char* data) {
  * appropriate error code is returned.
  */
 RasStatus ras_store_packet(re* entry, char* packet) { // double check the units here
-    iphdr* hdr = (iphdr *) packet;
+    IpHeader* hdr = (IpHeader *) packet;
     
     size_t frag_offset = hdr->frag_offset;
 
     if (frag_offset == 0) {
-        memcpy(entry->hdr, hdr, sizeof(iphdr));
+        memcpy(entry->hdr, hdr, sizeof(IpHeader));
     }
 
     char* data_start = packet + hdr->ihl * 4;                           // Both of these are in octets 
@@ -253,7 +253,7 @@ RasStatus ras_store_packet(re* entry, char* packet) { // double check the units 
  * @param packet: raw packet to be stored
  */
 RasStatus ras_log(char* packet) {
-    iphdr* hdr = (iphdr *) packet;
+    IpHeader* hdr = (IpHeader *) packet;
     get_BufId(hdr, temp_id);
 
     re* current = ras.h;

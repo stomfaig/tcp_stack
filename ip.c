@@ -93,15 +93,15 @@ int out_pool_empty() {
 
 /**
  * Add new message to the out_pool. Should only be called by the owner of the out_pool.lock
- * @param iphdr reference to header of package to be sent
+ * @param IpHeader reference to header of package to be sent
  * @param data reference to the data to be attached to the message.
 */
-IpStatus out_pool_append(iphdr *iphdr, char *data) {
+IpStatus out_pool_append(IpHeader *IpHeader, char *data) {
     if (out_pool_full()) return IP_ERR_OUT_POOL_FULL;
     // get checksum
     char* addr = out_pool.pckts[out_pool.e].data;
-    memcpy(addr, (void*)iphdr, iphdr->ihl * 4);
-    memcpy(addr + iphdr->ihl * 4, data, iphdr->len - iphdr->ihl * 4);
+    memcpy(addr, (void*)IpHeader, IpHeader->ihl * 4);
+    memcpy(addr + IpHeader->ihl * 4, data, IpHeader->len - IpHeader->ihl * 4);
 
     out_pool.e++; 
     return IP_SUCCESS;
@@ -110,11 +110,11 @@ IpStatus out_pool_append(iphdr *iphdr, char *data) {
 /**
  * Pops an element of the out_pool, and prints it on std out. This method should only be used for 
  * testing, as it does not provide any error handling.
- * @param hdr address to which copy the iphdr data
+ * @param hdr address to which copy the IpHeader data
  * @param data address to which copy the data
 */
-void out_pool_pop(iphdr* hdr, char* data) {
-    iphdr* pckt_hdr = (iphdr *) out_pool.pckts[out_pool.s].data;
+void out_pool_pop(IpHeader* hdr, char* data) {
+    IpHeader* pckt_hdr = (IpHeader *) out_pool.pckts[out_pool.s].data;
     char* pckt_data = ((char *) out_pool.pckts[out_pool.s].data) + (pckt_hdr->ihl * 4);
     out_pool.s++;
 
@@ -194,7 +194,7 @@ int check_ipv6(char* buff) {
     else return 0;
 }
 
-void get_buff_id(iphdr* hdr, BufId* id) {
+void get_buff_id(IpHeader* hdr, BufId* id) {
     id->saddr = hdr->saddr;
     id->daddr = hdr->daddr;
     id->proto = hdr->proto;
@@ -212,7 +212,7 @@ void in_traffic_manager() {
 
             if (!check_ipv4(packet) && !(check_ipv6(packet))) continue;
 
-            iphdr* hdr = (iphdr *)packet;
+            IpHeader* hdr = (IpHeader *)packet;
 
             // check checksum.
 
@@ -222,7 +222,7 @@ void in_traffic_manager() {
             }
             RasStatus s;
             if ((s = ras_log(packet)) == RAS_SUCCESS_RE_COMPLETE) {
-                iphdr* cmplt_hdr;                   // These need allocated space...
+                IpHeader* cmplt_hdr;                   // These need allocated space...
                 char* data;
                 ras_get_packet(cmplt_hdr, data);
                 // pass to ip packet queue
@@ -240,7 +240,7 @@ void in_traffic_manager() {
  * @param hdr header containing all 'routing information'.
  * @param payload_start pointer to the data chunk associated with the header.
  */
-IpStatus queue_for_sending(iphdr* hdr, char* payload_start) {
+IpStatus queue_for_sending(IpHeader* hdr, char* payload_start) {
 
     IpStatus s;
 
@@ -285,7 +285,7 @@ IpStatus queue_for_sending(iphdr* hdr, char* payload_start) {
  * @param hdr header of the packet
  * @param data pointer to the data associated to the header.
  */
-void print_packet(iphdr* hdr, char* data) {
+void print_packet(IpHeader* hdr, char* data) {
     printf("---Packet start---\n");
     printf("version             : %i\n", hdr->ver);
     printf("inet header length  : %i\n", hdr->ihl);

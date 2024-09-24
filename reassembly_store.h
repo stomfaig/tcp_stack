@@ -20,7 +20,7 @@ void ras_error_message(RasStatus s);
 RasStatus ras_init();
 void ras_kill();
 RasStatus ras_log(char* packet);
-RasStatus ras_get_packet(iphdr* hdr, char* data);
+RasStatus ras_get_packet(IpHeader* hdr, char* data);
 
 #ifdef DEBUG_INFO_ENABLED
 

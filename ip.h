@@ -84,17 +84,17 @@ typedef struct __attribute__((__packed__))
     uint16_t csum;                  //
     uint32_t saddr;                 //
     uint32_t daddr;                 //
-} iphdr;
+} IpHeader;
 
 typedef struct {
-    iphdr iphdr;
-    char payload[MTU-sizeof(iphdr)];
+    IpHeader IpHeader;
+    char payload[MTU-sizeof(IpHeader)];
 } ippckt;
 
 IpStatus ip_init();
 void* traffic_manager();
 void ip_kill();
-IpStatus queue_for_sending(iphdr* hdr, char* payload_start);
+IpStatus queue_for_sending(IpHeader* hdr, char* payload_start);
 IpStatus set_packet_target()
 
 int ip_empty();
@@ -106,10 +106,10 @@ IpStatus ip_send_packet();
 void release();
 
 int out_pool_empty();
-IpStatus out_pool_append(iphdr *iphdr, char *data);
-void out_pool_pop(iphdr* hdr, char* data);
+IpStatus out_pool_append(IpHeader *IpHeader, char *data);
+void out_pool_pop(IpHeader* hdr, char* data);
 
-void print_packet(iphdr* hdr, char* data);
+void print_packet(IpHeader* hdr, char* data);
 
 #endif
 
