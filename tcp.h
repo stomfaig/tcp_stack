@@ -4,7 +4,11 @@
 
 typedef enum {
     TCP_SUCCESS,
-    TCP_ERR_UNKWN_COMMAND,  // A TCP state machine command was received that is not recognized.
+    TCP_ERR,                        // General error
+    TCP_ERR_UNKWN_COMMAND,          // A TCP state machine command was received that is not recognized.
+    TCP_ERR_PORT_CLOSED,            // A packet was received, but there associated port is closed.
+    TCP_ERR_UNEXPECTED_MESSAGE,     // The state machine received an unexpected message.
+    TCP_ERR_ACK_FAILED,             
 } TcpStatus;
 
 typedef enum {
@@ -36,11 +40,16 @@ typedef enum {
 #define TCP_SYN 0b000010
 #define TCP_FIN 0b000001
 
+#define SET_FLAG(hdr, flag) ((hdr)->flags |= flag)
+#define UNSET_FLAG(hdr, flag) ((hdr)->flags &= ~flag)
+
+#define CHECK_FLAG(hdr, flag) ((hdr)->flags & flag)
+
 
 typedef struct __attribute__((__packed__))
 {
-    uint16_t s_port;
-    uint16_t d_port;
+    uint16_t s_port;                // source port
+    uint16_t d_port;                // destination port
     uint32_t seq_number;
     uint32_t ack_number;
     uint8_t data_offset : 4;
@@ -53,7 +62,5 @@ typedef struct __attribute__((__packed__))
     // 
 } TcpHeader;
 
-void store_packet(iphdr* hdr, char* data);
+void store_packet(IpHeader* hdr, char* data);
 
-#define SET_FLAG(hdr, flag) ((hdr)->flags |= flag)
-#define UNSET_FLAG(hdr) ((hdr)->flags &= ~flag)
